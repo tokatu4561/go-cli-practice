@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/url"
+	"path"
 	"regexp"
 	"strings"
 
@@ -19,8 +21,8 @@ type Entry struct {
 }
 
 // 作者とzipファイルのURLを取得
-func findAuthorAndZipUrl(url string) (string, string) {
-	doc, err := goquery.NewDocument(url)
+func findAuthorAndZipUrl(siteUrl string) (string, string) {
+	doc, err := goquery.NewDocument(siteUrl)
 	if err != nil {
 		return "", ""
 	}
@@ -35,7 +37,18 @@ func findAuthorAndZipUrl(url string) (string, string) {
 		}
 	})
 
-	return author, zipUrl
+	if zipUrl == "" {
+		return author, ""
+	}
+
+	u, err := url.Parse(siteUrl)
+	if err != nil {
+		return author, ""
+	}
+
+	u.Path = path.Join(path.Dir(u.Path), zipUrl)
+
+	return author, u.String()
 }
 
 func findEntries(siteURL string) ([]Entry, error) {
