@@ -1,8 +1,12 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"net/url"
 	"path"
 	"regexp"
@@ -16,7 +20,7 @@ type Entry struct {
 	Author string
 	TitleID string
 	Title string
-	InfoURL string
+	SiteURL string
 	ZipURL string
 }
 
@@ -58,19 +62,64 @@ func findEntries(siteURL string) ([]Entry, error) {
 		return nil, err
 	}
 
+	entries := []Entry{}
 	pat := regexp.MustCompile(`.*/cards/([0-9]+)/card([0-9]+).html$`)
 	doc.Find("ol li a").Each(func(i int, elem *goquery.Selection) {
 		matchSli := pat.FindStringSubmatch(elem.AttrOr("href", ""))
 		if len(matchSli) != 3 {
 			return
 		}
-		pageUrl := fmt.Sprintf("https://www.aozora.gr.jp/cards/%s/card%s.html", matchSli[1], matchSli[2])
+
+		title := elem.Text()
+		authorId := matchSli[1]
+		titleId := matchSli[2]
+		pageUrl := fmt.Sprintf("https://www.aozora.gr.jp/cards/%s/card%s.html", authorId, titleId)
 
 		author, zipUrl := findAuthorAndZipUrl(pageUrl)
-		println(author, zipUrl)
+		if zipUrl != "" {
+			entries = append(entries, Entry{
+				AuthorID: authorId,
+				Author: author,
+				TitleID: titleId,
+				Title: title,
+				SiteURL: siteURL,
+				ZipURL: zipUrl,
+			})
+		}
 	})
 
-	return nil, nil
+	return entries, nil
+}
+
+func extractText(zipUrl string) (string, error) {
+	res, err := http.Get(zipUrl)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	b, err := ioutil.ReadAll(res.Body)
+	r, err := zip.NewReader(bytes.NewReader(b), int64(len(b)))
+	if err != nil {
+		return "", err
+	}
+
+	for _, file := range r.File {
+		if path.Ext(file.Name) == ".txt" {
+			f, err := file.Open()
+			if err != nil {
+				return "", err
+			}
+			b, err := ioutil.ReadAll(f)
+			f.Close()
+			if err != nil {
+				return "", err
+			}
+			return string(b), nil
+		}
+	}
+
+	return "", nil
 }
 
 func main() {
@@ -82,5 +131,10 @@ func main() {
 	}
 	for _, entry := range entries {
 		fmt.Println(entry.Title, entry.ZipURL)
+		content, err := extractText(entry.ZipURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		println(content)
 	}
 }
