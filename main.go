@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/text/encoding/japanese"
 )
 
 type Entry struct {
@@ -115,11 +117,16 @@ func extractText(zipUrl string) (string, error) {
 			if err != nil {
 				return "", err
 			}
+			// shift jis を utf 8に変換
+			b, err = japanese.ShiftJIS.NewDecoder().Bytes(b)
+			if err != nil {
+				return "", err
+			}
 			return string(b), nil
 		}
 	}
 
-	return "", nil
+	return "", errors.New("content not found")
 }
 
 func main() {
