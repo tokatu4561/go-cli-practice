@@ -33,29 +33,32 @@ func findAuthorAndZipUrl(siteUrl string) (string, string) {
 		return "", ""
 	}
 
-	author := doc.Find("table[summary=作家データ tr:nth-child(1) td:nth-child(2)]").Text()
+	author := doc.Find("table[summary=作家データ] tr:nth-child(2) td:nth-child(2)").First().Text()
 
-	zipUrl := ""
-	doc.Find("table.download a").Each(func(i int, elm *goquery.Selection) {
-		href := elm.AttrOr("href", "")
+	zipURL := ""
+	doc.Find("table.download a").Each(func(n int, elem *goquery.Selection) {
+		href := elem.AttrOr("href", "")
 		if strings.HasSuffix(href, ".zip") {
-			zipUrl = href
+			zipURL = href
 		}
 	})
 
-	if zipUrl == "" {
+	if zipURL == "" {
 		return author, ""
+	}
+	if strings.HasPrefix(zipURL, "http://") || strings.HasPrefix(zipURL, "https://") {
+		return author, zipURL
 	}
 
 	u, err := url.Parse(siteUrl)
 	if err != nil {
 		return author, ""
 	}
-
-	u.Path = path.Join(path.Dir(u.Path), zipUrl)
-
+	u.Path = path.Join(path.Dir(u.Path), zipURL)
 	return author, u.String()
 }
+
+var pageURLFormat = "https://www.aozora.gr.jp/cards/%s/card%s.html"
 
 func findEntries(siteURL string) ([]Entry, error) {
 	// TODO
@@ -75,7 +78,7 @@ func findEntries(siteURL string) ([]Entry, error) {
 		title := elem.Text()
 		authorId := matchSli[1]
 		titleId := matchSli[2]
-		pageUrl := fmt.Sprintf("https://www.aozora.gr.jp/cards/%s/card%s.html", authorId, titleId)
+		pageUrl := fmt.Sprintf(pageURLFormat, authorId, titleId)
 
 		author, zipUrl := findAuthorAndZipUrl(pageUrl)
 		if zipUrl != "" {
